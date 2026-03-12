@@ -26,10 +26,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
 // DOM 净化
 // ============================================================
 
+// 净化选择器（仅针对阅读页面的干扰元素，不影响书架等页面）
 const PURIFY_SELECTORS = [
-  '.readerTopBar', '.readerFooter', '.readerControls', '.shelf_list',
-  '.readerCatalog', '.avatar', '.readerComment', '.readerSocial',
-  '[class*="background"]',
+  '.readerTopBar', '.readerFooter', '.readerControls',
+  '.readerCatalog', '.readerComment', '.readerSocial',
 ];
 
 let purifyActive = true;
@@ -74,7 +74,13 @@ function stopPurifyObserver(): void {
 
 ipcRenderer.on('purify:toggle', (_event, enabled?: boolean) => {
   purifyActive = typeof enabled === 'boolean' ? enabled : !purifyActive;
-  purifyActive ? startPurifyObserver() : stopPurifyObserver();
+  if (purifyActive) {
+    // 重新净化整个页面
+    purifySubtree(document.body);
+    startPurifyObserver();
+  } else {
+    stopPurifyObserver();
+  }
 });
 
 // ============================================================
@@ -154,17 +160,31 @@ function createAddressBar(): void {
   settingsBtn.addEventListener('mouseenter', () => { settingsBtn.style.color = '#fff'; });
   settingsBtn.addEventListener('mouseleave', () => { settingsBtn.style.color = '#aaa'; });
 
-  // 拖拽按钮（按住可拖动窗口）
+  // 拖拽按钮（按住通过 IPC 手动移动窗口）
   const dragBtn = document.createElement('button');
   dragBtn.textContent = '点击拖拽';
   dragBtn.title = '按住拖动窗口';
+  dragBtn.setAttribute('data-drag', 'true');
   dragBtn.style.cssText = `
     padding: 4px 14px; background: #3a3a3a; color: #aaa;
     border: 1px solid #555; border-radius: 4px; font-size: 12px;
-    cursor: move; white-space: nowrap; -webkit-app-region: drag;
+    cursor: move; white-space: nowrap; -webkit-app-region: no-drag;
   `;
   dragBtn.addEventListener('mouseenter', () => { dragBtn.style.color = '#fff'; });
   dragBtn.addEventListener('mouseleave', () => { dragBtn.style.color = '#aaa'; });
+  dragBtn.addEventListener('mousedown', (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    ipcRenderer.send('window:drag-start');
+    const onMove = () => ipcRenderer.send('window:drag-move');
+    const onUp = () => {
+      ipcRenderer.send('window:drag-end');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 
   addressBarContainer.appendChild(addressBarInput);
   addressBarContainer.appendChild(settingsBtn);
@@ -260,7 +280,14 @@ function createSettingsPanel(): void {
   // 净化模式开关
   toggleSection.appendChild(createToggleRow('净化模式', '隐藏微信读书页面干扰元素', purifyActive, (val) => {
     purifyActive = val;
-    val ? startPurifyObserver() : stopPurifyObserver();
+    if (val) {
+      purifySubtree(document.body);
+      startPurifyObserver();
+    } else {
+      stopPurifyObserver();
+    }
+    // 通知主进程同步状态（持久化）
+    ipcRenderer.send('settings:purify-changed', val);
   }));
 
   settingsPanel.appendChild(toggleSection);
@@ -269,6 +296,61 @@ function createSettingsPanel(): void {
   const sep2 = document.createElement('div');
   sep2.style.cssText = 'border-top: 1px solid #444; margin: 12px 0;';
   settingsPanel.appendChild(sep2);
+
+  // 字体大小调节区域
+  const zoomSection = document.createElement('div');
+  const zoomTitle = document.createElement('div');
+  zoomTitle.style.cssText = 'font-size: 13px; color: #888; margin-bottom: 8px;';
+  zoomTitle.textContent = '字体大小';
+  zoomSection.appendChild(zoomTitle);
+
+  const zoomRow = document.createElement('div');
+  zoomRow.style.cssText = 'display: flex; align-items: center; gap: 8px; padding: 6px 8px;';
+
+  const zoomDownBtn = document.createElement('button');
+  zoomDownBtn.textContent = '−';
+  zoomDownBtn.style.cssText = `
+    width: 28px; height: 28px; background: #3a3d41; color: #ccc;
+    border: 1px solid #555; border-radius: 4px; font-size: 16px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    -webkit-app-region: no-drag;
+  `;
+
+  const zoomLabel = document.createElement('span');
+  zoomLabel.style.cssText = 'font-size: 13px; color: #ccc; min-width: 40px; text-align: center;';
+  let currentZoom = 100;
+  // 从主进程获取当前缩放值
+  ipcRenderer.invoke('settings:get-state').then((state: any) => {
+    if (state && state.fontSize) {
+      currentZoom = state.fontSize;
+      zoomLabel.textContent = currentZoom + '%';
+    }
+  });
+  zoomLabel.textContent = currentZoom + '%';
+
+  const zoomUpBtn = document.createElement('button');
+  zoomUpBtn.textContent = '+';
+  zoomUpBtn.style.cssText = zoomDownBtn.style.cssText;
+
+  const updateZoom = (delta: number) => {
+    currentZoom = Math.max(50, Math.min(200, currentZoom + delta));
+    zoomLabel.textContent = currentZoom + '%';
+    ipcRenderer.send('settings:zoom-changed', currentZoom);
+  };
+
+  zoomDownBtn.addEventListener('click', () => updateZoom(-10));
+  zoomUpBtn.addEventListener('click', () => updateZoom(10));
+
+  zoomRow.appendChild(zoomDownBtn);
+  zoomRow.appendChild(zoomLabel);
+  zoomRow.appendChild(zoomUpBtn);
+  zoomSection.appendChild(zoomRow);
+  settingsPanel.appendChild(zoomSection);
+
+  // 分隔线
+  const sep3 = document.createElement('div');
+  sep3.style.cssText = 'border-top: 1px solid #444; margin: 12px 0;';
+  settingsPanel.appendChild(sep3);
 
   // 底部操作
   const footer = document.createElement('div');
@@ -407,7 +489,11 @@ window.addEventListener('DOMContentLoaded', () => {
   // 注入样式
   const style = document.createElement('style');
   style.textContent = `
-    input, button, a, select, textarea, [class*="reader"], iframe {
+    /* 隐藏滚动条但保留滚动功能 */
+    ::-webkit-scrollbar { display: none !important; }
+    html, body { scrollbar-width: none !important; }
+
+    input, button:not([data-drag]), a, select, textarea, [class*="reader"], iframe {
       -webkit-app-region: no-drag;
     }
     .resize-border { position: fixed; z-index: 999998; -webkit-app-region: no-drag; }
@@ -505,6 +591,6 @@ window.addEventListener('DOMContentLoaded', () => {
     await renderSettingsShortcuts();
   }, true);
 
-  // 启动净化
-  if (purifyActive) startPurifyObserver();
+  // 净化模式由主进程在 did-finish-load 后通过 purify:toggle 消息控制
+  // 不在此处硬编码启动，避免页面刷新后状态不一致
 });

@@ -27,6 +27,8 @@ export interface AppState {
   theme: {
     terminalEnabled: boolean;  // 终端伪装主题是否开启
   };
+  purifyEnabled: boolean;     // 净化模式是否开启
+  fontSize: number;           // 页面缩放百分比（默认 100）
   url: string;              // 当前加载的 URL
   alwaysOnTop: boolean;     // 是否置顶
 }
@@ -72,6 +74,11 @@ export const IPC_CHANNELS = {
   THEME_TOGGLE: 'theme:toggle',              // 切换终端主题
   PURIFY_TOGGLE: 'purify:toggle',            // 切换净化模式
 
+  // 设置状态相关
+  GET_SETTINGS_STATE: 'settings:get-state',  // 获取当前设置状态（净化、终端主题等）
+  PURIFY_CHANGED: 'settings:purify-changed', // 渲染进程通知净化模式变更
+  ZOOM_CHANGED: 'settings:zoom-changed',     // 渲染进程通知缩放变更
+
   // 导航相关
   NAVIGATE_URL: 'navigate:url',              // 导航到指定 URL
   TOGGLE_ADDRESS_BAR: 'address-bar:toggle',  // 切换地址栏显隐
@@ -79,6 +86,11 @@ export const IPC_CHANNELS = {
   // 鼠标事件相关
   MOUSE_ENTER: 'mouse:enter',               // 鼠标进入窗口
   MOUSE_LEAVE: 'mouse:leave',               // 鼠标离开窗口
+
+  // 窗口拖拽移动相关
+  WINDOW_DRAG_START: 'window:drag-start',       // 开始拖拽移动窗口
+  WINDOW_DRAG_MOVE: 'window:drag-move',         // 拖拽移动中
+  WINDOW_DRAG_END: 'window:drag-end',           // 拖拽移动结束
 
   // 窗口 resize 相关
   WINDOW_RESIZE_START: 'window:resize-start',   // 开始拖拽调整大小
@@ -104,15 +116,12 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
 // 微信读书净化规则
 // ============================================================
 
-/** 微信读书页面净化规则（预定义） */
+/** 微信读书阅读页面净化规则（仅在 /web/reader/ 页面生效） */
 export const WEREAD_PURIFY_RULES: PurifyRule[] = [
   { selector: '.readerTopBar', action: 'hide' },           // 顶部导航栏
   { selector: '.readerFooter', action: 'hide' },           // 底部工具栏
   { selector: '.readerControls', action: 'hide' },         // 阅读控制面板
-  { selector: '.shelf_list', action: 'hide' },             // 书架列表
   { selector: '.readerCatalog', action: 'hide' },          // 目录面板
-  { selector: '.avatar', action: 'hide' },                 // 用户头像
   { selector: '.readerComment', action: 'hide' },          // 评论区
   { selector: '.readerSocial', action: 'hide' },           // 社交元素
-  { selector: '[class*="background"]', action: 'hide' },   // 背景装饰
 ];

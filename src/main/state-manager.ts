@@ -38,6 +38,8 @@ export class StateManager {
       theme: {
         terminalEnabled: false,
       },
+      purifyEnabled: true,
+      fontSize: 100,
       url: 'https://weread.qq.com',
       alwaysOnTop: false,
     };

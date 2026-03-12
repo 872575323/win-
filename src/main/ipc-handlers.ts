@@ -65,6 +65,41 @@ export function registerNavigationIpcHandlers(
 }
 
 /**
+ * 注册窗口拖拽移动相关的 IPC 处理器
+ * 通过 preload 中的拖拽按钮 mousedown 事件，手动移动窗口位置
+ */
+export function registerDragIpcHandlers(
+  windowManager: WindowManager
+): void {
+  let startBounds: Electron.Rectangle | null = null;
+  let startCursorX = 0;
+  let startCursorY = 0;
+
+  ipcMain.on(IPC_CHANNELS.WINDOW_DRAG_START, () => {
+    const win = windowManager.getWindow();
+    if (!win) return;
+    startBounds = win.getBounds();
+    const cursor = screen.getCursorScreenPoint();
+    startCursorX = cursor.x;
+    startCursorY = cursor.y;
+  });
+
+  ipcMain.on(IPC_CHANNELS.WINDOW_DRAG_MOVE, () => {
+    if (!startBounds) return;
+    const win = windowManager.getWindow();
+    if (!win) return;
+    const cursor = screen.getCursorScreenPoint();
+    const dx = cursor.x - startCursorX;
+    const dy = cursor.y - startCursorY;
+    win.setPosition(startBounds.x + dx, startBounds.y + dy);
+  });
+
+  ipcMain.on(IPC_CHANNELS.WINDOW_DRAG_END, () => {
+    startBounds = null;
+  });
+}
+
+/**
  * 注册窗口 resize 相关的 IPC 处理器
  * 通过 preload 中的自定义 resize 边框拖拽事件，手动调整窗口大小
  *

@@ -7,8 +7,6 @@
  * - ContentInjector：注入净化样式和终端伪装主题
  * - StealthController：鼠标驱动的智能显隐
  * - ShortcutManager：全局快捷键注册和管理
- *
- * 需求：3.1, 7.1, 7.2, 7.3, 7.4, 5.7
  */
 
 import { app, ipcMain } from 'electron';
@@ -17,13 +15,16 @@ import { WindowManager } from './window-manager';
 import { ContentInjector } from './content-injector';
 import { StealthController } from './stealth-controller';
 import { ShortcutManager } from './shortcut-manager';
-import { registerShortcutIpcHandlers, registerNavigationIpcHandlers, registerResizeIpcHandlers } from './ipc-handlers';
-import { IPC_CHANNELS } from './types';
+import { registerShortcutIpcHandlers, registerNavigationIpcHandlers, registerResizeIpcHandlers, registerDragIpcHandlers } from './ipc-handlers';
+import { IPC_CHANNELS, AppState } from './types';
 
-// 模块实例引用（在 before-quit 中需要访问）
+// 模块实例引用
 let stateManager: StateManager;
 let windowManager: WindowManager;
 let contentInjector: ContentInjector;
+
+// 运行时状态（跟踪当前实际状态，页面刷新时据此恢复）
+let currentState: AppState;
 
 // ============================================================
 // 应用就绪后初始化所有模块
@@ -31,77 +32,133 @@ let contentInjector: ContentInjector;
 app.on('ready', async () => {
   // 1. 初始化状态管理器，加载保存的配置
   stateManager = new StateManager(app.getPath('userData'));
-  const state = stateManager.load();
+  currentState = stateManager.load();
+
+  // 兼容旧配置文件
+  if (currentState.purifyEnabled === undefined) {
+    currentState.purifyEnabled = true;
+  }
+  if (currentState.fontSize === undefined) {
+    currentState.fontSize = 100;
+  }
+
   const savedShortcuts = stateManager.loadShortcuts();
 
-  // 2. 创建窗口管理器，根据保存的状态创建窗口
+  // 2. 创建窗口管理器
   windowManager = new WindowManager();
   const win = windowManager.createWindow({
-    width: state.window.width,
-    height: state.window.height,
-    x: state.window.x,
-    y: state.window.y,
-    alwaysOnTop: state.alwaysOnTop,
-    defaultUrl: state.url,
+    width: currentState.window.width,
+    height: currentState.window.height,
+    x: currentState.window.x,
+    y: currentState.window.y,
+    alwaysOnTop: currentState.alwaysOnTop,
+    defaultUrl: currentState.url,
   });
 
   // 3. 加载保存的 URL
-  windowManager.loadURL(state.url).catch((err) => {
+  windowManager.loadURL(currentState.url).catch((err) => {
     console.error('[主进程] URL 加载失败:', err);
   });
 
   // 4. 初始化内容注入器
   contentInjector = new ContentInjector();
 
-  // 5. 页面加载完成后注入净化样式和终端主题（如已开启）
+  // 5. 页面加载完成后根据当前运行时状态恢复注入
   win.webContents.on('did-finish-load', async () => {
     try {
-      // 注入净化样式
-      await contentInjector.injectPurifyStyles(win.webContents);
+      // 重置注入器内部状态（页面刷新后旧 CSS key 已失效）
+      contentInjector.resetState();
 
-      // 如果上次退出时终端主题是开启的，恢复终端主题
-      if (state.theme.terminalEnabled) {
+      // 根据当前状态恢复净化模式
+      if (currentState.purifyEnabled) {
+        await contentInjector.injectPurifyStyles(win.webContents);
+      }
+
+      // 根据当前状态恢复终端主题
+      if (currentState.theme.terminalEnabled) {
         await contentInjector.injectTerminalTheme(win.webContents);
       }
+
+      // 通知渲染进程当前净化状态（preload 据此初始化 MutationObserver）
+      win.webContents.send(IPC_CHANNELS.PURIFY_TOGGLE, currentState.purifyEnabled);
+
+      // 恢复页面缩放级别
+      const zoomFactor = (currentState.fontSize || 100) / 100;
+      win.webContents.setZoomFactor(zoomFactor);
     } catch (error) {
       console.error('[主进程] 页面加载后注入失败:', error);
     }
   });
 
-  // 6. 初始化智能显隐控制器（自动启动鼠标位置轮询）
+  // 6. 初始化智能显隐控制器
   const stealthController = new StealthController(win);
 
-  // 8. 初始化快捷键管理器，绑定各操作的回调
+  // 7. 注册设置状态查询 IPC（preload 用来获取当前状态）
+  ipcMain.handle(IPC_CHANNELS.GET_SETTINGS_STATE, () => {
+    return {
+      purifyEnabled: currentState.purifyEnabled,
+      terminalEnabled: currentState.theme.terminalEnabled,
+      fontSize: currentState.fontSize || 100,
+    };
+  });
+
+  // 8. 初始化快捷键管理器
   const shortcutManager = new ShortcutManager({
     toggleVisibility: () => stealthController.toggle(),
-    toggleTerminalTheme: () => contentInjector.toggleTerminalTheme(),
-    togglePurify: () => contentInjector.togglePurify(),
+    toggleTerminalTheme: async () => {
+      await contentInjector.toggleTerminalTheme();
+      // 同步更新运行时状态
+      currentState.theme.terminalEnabled = contentInjector.isTerminalThemeEnabled();
+    },
+    togglePurify: async () => {
+      await contentInjector.togglePurify();
+      // 同步更新运行时状态
+      currentState.purifyEnabled = contentInjector.isPurifyEnabled();
+      // 通知渲染进程更新 MutationObserver
+      if (win && !win.isDestroyed()) {
+        win.webContents.send(IPC_CHANNELS.PURIFY_TOGGLE, currentState.purifyEnabled);
+      }
+    },
     openAddressBar: () => {
-      // 向渲染进程发送切换地址栏的消息
       if (win && !win.isDestroyed()) {
         win.webContents.send(IPC_CHANNELS.TOGGLE_ADDRESS_BAR);
       }
     },
     quitApp: () => app.quit(),
     openShortcutSettings: () => {
-      // 向渲染进程发送切换快捷键设置面板的消息
       if (win && !win.isDestroyed()) {
         win.webContents.send(IPC_CHANNELS.TOGGLE_SETTINGS);
       }
     },
   });
 
-  // 9. 使用保存的快捷键绑定注册所有快捷键
+  // 9. 注册快捷键
   shortcutManager.registerAll(savedShortcuts);
 
-  // 10. 注册快捷键相关的 IPC 处理器
+  // 10. 注册 IPC 处理器
   registerShortcutIpcHandlers(shortcutManager, stateManager);
-
-  // 11. 注册导航相关的 IPC 处理器
   registerNavigationIpcHandlers(windowManager);
-
-  // 12. 注册窗口 resize 相关的 IPC 处理器
   registerResizeIpcHandlers(windowManager);
+  registerDragIpcHandlers(windowManager);
+
+  // 11. 监听渲染进程设置面板中的净化模式变更
+  ipcMain.on(IPC_CHANNELS.PURIFY_CHANGED, async (_event, enabled: boolean) => {
+    currentState.purifyEnabled = enabled;
+    if (enabled && !contentInjector.isPurifyEnabled()) {
+      await contentInjector.injectPurifyStyles(win.webContents);
+    } else if (!enabled && contentInjector.isPurifyEnabled()) {
+      await contentInjector.removePurifyStyles(win.webContents);
+    }
+  });
+
+  // 12. 监听缩放变更
+  ipcMain.on(IPC_CHANNELS.ZOOM_CHANGED, (_event, fontSize: number) => {
+    currentState.fontSize = fontSize;
+    const zoomFactor = fontSize / 100;
+    if (win && !win.isDestroyed()) {
+      win.webContents.setZoomFactor(zoomFactor);
+    }
+  });
 
   console.log('[主进程] 沉浸式隐蔽小说阅读器已启动');
 });
@@ -113,11 +170,9 @@ app.on('before-quit', () => {
   try {
     if (!stateManager || !windowManager || !contentInjector) return;
 
-    // 获取当前窗口位置和尺寸
     const bounds = windowManager.getBounds();
     const win = windowManager.getWindow();
 
-    // 保存完整的应用状态
     stateManager.save({
       window: {
         x: bounds.x,
@@ -126,8 +181,10 @@ app.on('before-quit', () => {
         height: bounds.height,
       },
       theme: {
-        terminalEnabled: contentInjector.isTerminalThemeEnabled(),
+        terminalEnabled: currentState.theme.terminalEnabled,
       },
+      purifyEnabled: currentState.purifyEnabled,
+      fontSize: currentState.fontSize || 100,
       url: win?.webContents?.getURL() || 'https://weread.qq.com',
       alwaysOnTop: win?.isAlwaysOnTop() ?? false,
     });
@@ -137,7 +194,7 @@ app.on('before-quit', () => {
 });
 
 // ============================================================
-// 所有窗口关闭时退出应用（macOS 除外）
+// 所有窗口关闭时退出应用
 // ============================================================
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

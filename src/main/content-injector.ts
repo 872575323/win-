@@ -64,25 +64,33 @@ export class ContentInjector {
    * @returns CSS 样式字符串
    */
   generateTerminalThemeCSS(): string {
-    return `/* 终端伪装核心样式 */
-body {
-  background-color: #000000 !important;
-  color: #00FF00 !important;
-  font-family: Consolas, "Fira Code", "Courier New", monospace !important;
+    return `/* 终端伪装核心样式 — 强制覆盖所有元素 */
+body, html {
+  background-color: #0a0a0a !important;
 }
 
-/* 段落行号前缀通过 CSS counter */
-.reader_content p {
-  counter-increment: line-number;
+/* 强制所有元素使用终端配色 */
+body *, body *::before, body *::after {
+  color: #00FF00 !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  font-family: Consolas, "Fira Code", "Courier New", monospace !important;
+  border-color: #1a3a1a !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
 }
-.reader_content p::before {
-  content: counter(line-number, decimal-leading-zero) " $ ";
-  color: #00AA00;
-  opacity: 0.6;
+
+/* 保留地址栏和设置面板的原始样式 */
+#stealth-address-bar, #stealth-address-bar *,
+#stealth-settings-panel, #stealth-settings-panel * {
+  color: revert !important;
+  background-color: revert !important;
+  font-family: revert !important;
+  border-color: revert !important;
 }
 
 /* 隐藏所有图片 */
-img, picture, svg, canvas {
+img, picture, svg, canvas, video {
   display: none !important;
 }`;
   }
@@ -165,25 +173,11 @@ img, picture, svg, canvas {
    * @param webContents Electron WebContents 实例
    */
   async injectTerminalTheme(webContents: WebContents): Promise<void> {
-    // 保存 webContents 引用，供 toggle 方法使用
     this.webContents = webContents;
 
     try {
-      // 注入终端主题 CSS
       const terminalCSS = this.generateTerminalThemeCSS();
       this.terminalCssKey = await webContents.insertCSS(terminalCSS);
-
-      // 通过 JS 注入 CSS counter-reset，确保行号从 0 开始递增
-      await webContents.executeJavaScript(`
-        (function() {
-          var container = document.querySelector('.reader_content') || document.querySelector('.readerContent');
-          if (container) {
-            container.style.counterReset = 'line-number';
-          }
-        })();
-      `);
-
-      // 标记终端主题已开启
       this.terminalThemeEnabled = true;
     } catch (error) {
       console.error('[ContentInjector] 注入终端主题失败:', error);
@@ -198,23 +192,10 @@ img, picture, svg, canvas {
    */
   async removeTerminalTheme(webContents: WebContents): Promise<void> {
     try {
-      // 移除已注入的终端主题 CSS
       if (this.terminalCssKey) {
         await webContents.removeInsertedCSS(this.terminalCssKey);
         this.terminalCssKey = null;
       }
-
-      // 通过 JS 移除 counter-reset
-      await webContents.executeJavaScript(`
-        (function() {
-          var container = document.querySelector('.reader_content') || document.querySelector('.readerContent');
-          if (container) {
-            container.style.counterReset = '';
-          }
-        })();
-      `);
-
-      // 标记终端主题已关闭
       this.terminalThemeEnabled = false;
     } catch (error) {
       console.error('[ContentInjector] 移除终端主题失败:', error);
@@ -241,5 +222,17 @@ img, picture, svg, canvas {
    */
   isTerminalThemeEnabled(): boolean {
     return this.terminalThemeEnabled;
+  }
+
+  /**
+   * 重置内部状态（页面刷新后旧 CSS key 已失效，需要清除）
+   * 不改变 enabled 标志，只清除 CSS key 引用
+   */
+  resetState(): void {
+    this.purifyCssKey = null;
+    this.fullscreenCssKey = null;
+    this.terminalCssKey = null;
+    this.purifyEnabled = false;
+    this.terminalThemeEnabled = false;
   }
 }
