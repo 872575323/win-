@@ -1,0 +1,54 @@
+{
+  "name": "stealth-novel-reader",
+  "version": "1.0.0",
+  "description": "沉浸式隐蔽小说阅读器 - 基于 Electron 的极简桌面阅读应用",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && electron .",
+    "dev": "ts-node src/main/index.ts",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:property": "jest --testPathPattern=tests/property",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "keywords": [
+    "electron",
+    "reader",
+    "stealth"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.4.0",
+    "electron": "^41.0.0",
+    "electron-builder": "^26.8.1",
+    "fast-check": "^4.6.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "build": {
+    "appId": "com.stealth.novel-reader",
+    "productName": "沉浸式隐蔽小说阅读器",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

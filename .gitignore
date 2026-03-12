@@ -1,0 +1,16 @@
+# 依赖包（绝不能传，体积太大）
+node_modules/
+
+# 打包生成的产物目录
+dist/
+release/
+out/
+
+# 日志和本地环境配置
+npm-debug.log*
+.npmrc
+.env
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db

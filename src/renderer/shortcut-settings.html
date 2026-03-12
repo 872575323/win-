@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>快捷键设置</title>
+  <style>
+    /* 全局样式 - 暗色主题 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      user-select: none;
+      -webkit-app-region: no-drag;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #e0e0e0;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #333;
+    }
+
+    /* 快捷键列表 */
+    .shortcut-list {
+      list-style: none;
+    }
+
+    .shortcut-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+
+    .shortcut-item:hover {
+      background-color: #2a2d2e;
+    }
+
+    .shortcut-item.recording {
+      background-color: #264f78;
+    }
+
+    .action-name {
+      font-size: 14px;
+      color: #cccccc;
+    }
+
+    .key-binding {
+      font-size: 13px;
+      font-family: Consolas, "Fira Code", "Courier New", monospace;
+      color: #569cd6;
+      background-color: #2d2d2d;
+      padding: 3px 8px;
+      border-radius: 3px;
+      border: 1px solid #404040;
+      min-width: 100px;
+      text-align: center;
+    }
+
+    .key-binding.recording {
+      color: #dcdcaa;
+      border-color: #569cd6;
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* 底部操作栏 */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid #333;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #666;
+    }
+
+    /* 按钮样式 */
+    .btn {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 4px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+
+    .btn-primary {
+      background-color: #0e639c;
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background-color: #1177bb;
+    }
+
+    .btn-secondary {
+      background-color: #3a3d41;
+      color: #cccccc;
+    }
+
+    .btn-secondary:hover {
+      background-color: #45494e;
+    }
+
+    /* 冲突提示弹窗 */
+    .conflict-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .conflict-overlay.visible {
+      display: flex;
+    }
+
+    .conflict-dialog {
+      background-color: #252526;
+      border: 1px solid #454545;
+      border-radius: 6px;
+      padding: 20px;
+      max-width: 360px;
+      width: 90%;
+    }
+
+    .conflict-message {
+      font-size: 14px;
+      color: #e0e0e0;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .conflict-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>⌨️ 快捷键设置</h1>
+
+  <ul class="shortcut-list" id="shortcutList">
+    <!-- 由 JS 动态渲染 -->
+  </ul>
+
+  <!-- 冲突提示弹窗 -->
+  <div class="conflict-overlay" id="conflictOverlay">
+    <div class="conflict-dialog">
+      <p class="conflict-message" id="conflictMessage"></p>
+      <div class="conflict-buttons">
+        <button class="btn btn-secondary" id="conflictCancel">取消</button>
+        <button class="btn btn-primary" id="conflictConfirm">确认覆盖</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 底部操作栏 -->
+  <div class="footer">
+    <button class="btn btn-secondary" id="resetBtn">恢复默认快捷键</button>
+    <span class="hint" id="statusHint">按 Esc 关闭设置</span>
+  </div>
+
+  <script src="shortcut-settings.js"></script>
+</body>
+</html>
