@@ -149,7 +149,7 @@ img, picture, svg, canvas, video {
    * 如果当前已开启则移除净化样式，否则注入净化样式。
    */
   async togglePurify(): Promise<void> {
-    if (!this.webContents) return;
+    if (!this.webContents || this.webContents.isDestroyed()) return;
 
     if (this.purifyEnabled) {
       await this.removePurifyStyles(this.webContents);
@@ -207,7 +207,7 @@ img, picture, svg, canvas, video {
    * 如果当前已开启则移除主题，否则注入主题。
    */
   async toggleTerminalTheme(): Promise<void> {
-    if (!this.webContents) return;
+    if (!this.webContents || this.webContents.isDestroyed()) return;
 
     if (this.terminalThemeEnabled) {
       await this.removeTerminalTheme(this.webContents);

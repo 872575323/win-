@@ -27,6 +27,8 @@ export interface MockBrowserWindow {
   setAlwaysOnTop: jest.Mock;
   /** 判断窗口是否已销毁 */
   isDestroyed: jest.Mock;
+  /** 判断窗口是否最小化 */
+  isMinimized: jest.Mock;
   /** 关闭窗口 */
   close: jest.Mock;
   /** 显示窗口 */
@@ -47,6 +49,8 @@ export interface MockWebContents {
   on: jest.Mock;
   /** 移除事件监听 */
   off: jest.Mock;
+  /** 判断 WebContents 是否已销毁 */
+  isDestroyed: jest.Mock;
 }
 
 /**
@@ -74,6 +78,7 @@ export function createMockBrowserWindow(
     loadURL: jest.fn().mockResolvedValue(undefined),
     setAlwaysOnTop: jest.fn(),
     isDestroyed: jest.fn(() => false),
+    isMinimized: jest.fn(() => false),
     close: jest.fn(),
     show: jest.fn(),
     webContents,
@@ -101,6 +106,7 @@ export function createMockWebContents(
     executeJavaScript: jest.fn().mockResolvedValue(undefined),
     on: jest.fn(),
     off: jest.fn(),
+    isDestroyed: jest.fn(() => false),
     ...overrides,
   };
 }

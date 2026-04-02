@@ -14,7 +14,11 @@ import type { BrowserWindow } from 'electron';
 type WindowGetter = () => BrowserWindow | null;
 
 /** 鼠标轮询间隔（毫秒） */
-const POLL_INTERVAL = 100;
+const POLL_INTERVAL_FAST = 100;
+/** 鼠标远离窗口后的慢速轮询间隔 */
+const POLL_INTERVAL_SLOW = 500;
+/** 连续多少次鼠标不在窗口内后切换到慢速轮询 */
+const SLOW_POLL_THRESHOLD = 20;
 
 export class StealthController {
   /** 当前是否可见 */
@@ -25,6 +29,12 @@ export class StealthController {
 
   /** 轮询定时器 */
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** 连续鼠标不在窗口内的计数 */
+  private missCount: number = 0;
+
+  /** 当前轮询间隔 */
+  private currentInterval: number = POLL_INTERVAL_FAST;
 
   /**
    * @param windowOrGetter BrowserWindow 实例或返回实例的函数
@@ -70,22 +80,52 @@ export class StealthController {
   }
 
   /**
+   * 单次轮询逻辑：检查鼠标位置，控制显隐，自适应调整轮询频率
+   */
+  private pollTick(): void {
+    if (!this.isWindowAvailable()) return;
+
+    const win = this.getWindow()!;
+    if (win.isMinimized()) return;
+
+    const cursorInWindow = this.isCursorInWindow();
+
+    if (cursorInWindow && !this.visible) {
+      this.show();
+    } else if (!cursorInWindow && this.visible) {
+      this.hide();
+    }
+
+    if (cursorInWindow) {
+      this.missCount = 0;
+      if (this.currentInterval !== POLL_INTERVAL_FAST) {
+        this.switchInterval(POLL_INTERVAL_FAST);
+      }
+    } else {
+      this.missCount++;
+      if (this.missCount >= SLOW_POLL_THRESHOLD && this.currentInterval !== POLL_INTERVAL_SLOW) {
+        this.switchInterval(POLL_INTERVAL_SLOW);
+      }
+    }
+  }
+
+  /**
    * 启动鼠标位置轮询
    */
   startPolling(): void {
     if (this.pollTimer) return;
+    this.currentInterval = POLL_INTERVAL_FAST;
+    this.pollTimer = setInterval(() => this.pollTick(), this.currentInterval);
+  }
 
-    this.pollTimer = setInterval(() => {
-      if (!this.isWindowAvailable()) return;
-
-      const cursorInWindow = this.isCursorInWindow();
-
-      if (cursorInWindow && !this.visible) {
-        this.show();
-      } else if (!cursorInWindow && this.visible) {
-        this.hide();
-      }
-    }, POLL_INTERVAL);
+  /**
+   * 切换轮询间隔（重建定时器）
+   */
+  private switchInterval(interval: number): void {
+    if (this.currentInterval === interval) return;
+    this.currentInterval = interval;
+    this.stopPolling();
+    this.pollTimer = setInterval(() => this.pollTick(), interval);
   }
 
   /**

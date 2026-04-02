@@ -27,7 +27,7 @@ export class WindowManager {
       y: config.y,
       frame: false,           // 无边框模式
       transparent: true,      // 透明背景
-      alwaysOnTop: true,      // 永远前置到最上层
+      alwaysOnTop: config.alwaysOnTop,
       resizable: true,        // 允许拖拽边框调整大小
       show: false,            // 先隐藏，等页面加载完再显示
       backgroundColor: '#00000000', // 透明背景色

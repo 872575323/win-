@@ -50,12 +50,19 @@ export class StateManager {
    * 文件不存在或 JSON 解析失败时返回默认值并重建文件
    */
   load(): AppState {
+    const defaults = this.getDefaults();
     try {
       const data = fs.readFileSync(this.configPath, 'utf-8');
-      return JSON.parse(data) as AppState;
+      const loaded = JSON.parse(data) as Partial<AppState>;
+      // 用默认值填充缺失字段，兼容旧配置文件
+      return {
+        ...defaults,
+        ...loaded,
+        window: { ...defaults.window, ...loaded.window },
+        theme: { ...defaults.theme, ...loaded.theme },
+      };
     } catch {
       // 文件不存在或 JSON 损坏，返回默认值并重建配置文件
-      const defaults = this.getDefaults();
       this.save(defaults);
       return defaults;
     }

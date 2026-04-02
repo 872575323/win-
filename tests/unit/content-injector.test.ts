@@ -128,9 +128,9 @@ describe('ContentInjector', () => {
   // ============================================================
 
   describe('generateTerminalThemeCSS', () => {
-    it('应包含黑色背景样式', () => {
+    it('应包含深色背景样式', () => {
       const css = injector.generateTerminalThemeCSS();
-      expect(css).toContain('background-color: #000000 !important');
+      expect(css).toContain('background-color: #0a0a0a !important');
     });
 
     it('应包含绿色文字颜色', () => {
@@ -146,13 +146,6 @@ describe('ContentInjector', () => {
       expect(css).toContain('monospace');
     });
 
-    it('应包含 CSS counter 行号前缀规则', () => {
-      const css = injector.generateTerminalThemeCSS();
-      expect(css).toContain('counter-increment: line-number');
-      expect(css).toContain('counter(line-number, decimal-leading-zero)');
-      expect(css).toContain('" $ "');
-    });
-
     it('应包含隐藏图片的规则', () => {
       const css = injector.generateTerminalThemeCSS();
       expect(css).toContain('img');
@@ -160,6 +153,13 @@ describe('ContentInjector', () => {
       expect(css).toContain('svg');
       expect(css).toContain('canvas');
       expect(css).toContain('display: none !important');
+    });
+
+    it('应保留地址栏和设置面板的原始样式', () => {
+      const css = injector.generateTerminalThemeCSS();
+      expect(css).toContain('#stealth-address-bar');
+      expect(css).toContain('#stealth-settings-panel');
+      expect(css).toContain('revert');
     });
   });
 
@@ -172,17 +172,8 @@ describe('ContentInjector', () => {
       expect(mockWebContents.insertCSS).toHaveBeenCalledTimes(1);
       // 验证注入的 CSS 包含终端主题核心样式
       const injectedCSS = mockWebContents.insertCSS.mock.calls[0][0];
-      expect(injectedCSS).toContain('#000000');
+      expect(injectedCSS).toContain('#0a0a0a');
       expect(injectedCSS).toContain('#00FF00');
-    });
-
-    it('应执行 JavaScript 设置 counter-reset', async () => {
-      await injector.injectTerminalTheme(mockWebContents as any);
-
-      expect(mockWebContents.executeJavaScript).toHaveBeenCalledTimes(1);
-      const jsCode = mockWebContents.executeJavaScript.mock.calls[0][0];
-      expect(jsCode).toContain('counterReset');
-      expect(jsCode).toContain('line-number');
     });
 
     it('注入后终端主题应为开启状态', async () => {
@@ -211,17 +202,6 @@ describe('ContentInjector', () => {
       await injector.removeTerminalTheme(mockWebContents as any);
 
       expect(mockWebContents.removeInsertedCSS).toHaveBeenCalledWith('terminal-css-key');
-    });
-
-    it('应执行 JavaScript 清除 counter-reset', async () => {
-      await injector.injectTerminalTheme(mockWebContents as any);
-      mockWebContents.executeJavaScript.mockClear();
-
-      await injector.removeTerminalTheme(mockWebContents as any);
-
-      expect(mockWebContents.executeJavaScript).toHaveBeenCalledTimes(1);
-      const jsCode = mockWebContents.executeJavaScript.mock.calls[0][0];
-      expect(jsCode).toContain("counterReset = ''");
     });
 
     it('移除后终端主题应为关闭状态', async () => {

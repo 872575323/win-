@@ -95,8 +95,18 @@ describe('WindowManager', () => {
       );
     });
 
-    it('应强制启用 alwaysOnTop 永远前置', () => {
+    it('应使用配置中的 alwaysOnTop 值', () => {
       windowManager.createWindow(defaultConfig);
+
+      expect(BrowserWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          alwaysOnTop: false,
+        })
+      );
+    });
+
+    it('alwaysOnTop 为 true 时应传递给 BrowserWindow', () => {
+      windowManager.createWindow({ ...defaultConfig, alwaysOnTop: true });
 
       expect(BrowserWindow).toHaveBeenCalledWith(
         expect.objectContaining({

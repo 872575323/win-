@@ -34,14 +34,6 @@ app.on('ready', async () => {
   stateManager = new StateManager(app.getPath('userData'));
   currentState = stateManager.load();
 
-  // 兼容旧配置文件
-  if (currentState.purifyEnabled === undefined) {
-    currentState.purifyEnabled = true;
-  }
-  if (currentState.fontSize === undefined) {
-    currentState.fontSize = 100;
-  }
-
   const savedShortcuts = stateManager.loadShortcuts();
 
   // 2. 创建窗口管理器
